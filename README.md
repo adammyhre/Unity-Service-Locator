@@ -51,4 +51,3 @@ You can also check out my [YouTube channel](https://www.youtube.com/@git-amend?s
 
 This project takes inspiration from the following open source projects:
 - [TinyContainer](https://github.com/JanikHelbig/TinyContainer)
-```
