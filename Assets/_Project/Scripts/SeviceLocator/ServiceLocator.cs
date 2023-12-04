@@ -37,7 +37,10 @@ namespace UnityServiceLocator {
             
             sceneContainers.Add(scene, this);
         }
-
+        
+        /// <summary>
+        /// Gets the global ServiceLocator instance. Creates new if none exists.
+        /// </summary>        
         public static ServiceLocator Global {
             get {
                 if (global != null) return global;
@@ -53,11 +56,10 @@ namespace UnityServiceLocator {
                 return global;
             }
         }
-
-        public static ServiceLocator For(MonoBehaviour mb) {
-            return mb.GetComponentInParent<ServiceLocator>().OrNull() ?? ForSceneOf(mb) ?? Global;
-        }
-
+        
+        /// <summary>
+        /// Returns the <see cref="ServiceLocator"/> configured for the scene of a MonoBehaviour. Falls back to the global instance.
+        /// </summary>
         public static ServiceLocator ForSceneOf(MonoBehaviour mb) {
             Scene scene = mb.gameObject.scene;
             
@@ -77,18 +79,43 @@ namespace UnityServiceLocator {
 
             return Global;
         }
+
+        /// <summary>
+        /// Gets the closest ServiceLocator instance to the provided 
+        /// MonoBehaviour in hierarchy, the ServiceLocator for its scene, or the global ServiceLocator.
+        /// </summary>
+        public static ServiceLocator For(MonoBehaviour mb) {
+            return mb.GetComponentInParent<ServiceLocator>().OrNull() ?? ForSceneOf(mb) ?? Global;
+        }
         
+        /// <summary>
+        /// Registers a service to the ServiceLocator using the service's type.
+        /// </summary>
+        /// <param name="service">The service to register.</param>  
+        /// <typeparam name="T">Class type of the service to be registered.</typeparam>
+        /// <returns>The ServiceLocator instance after registering the service.</returns>
         public ServiceLocator Register<T>(T service) {
             services.Register(service);
             return this;
         }
         
+        /// <summary>
+        /// Registers a service to the ServiceLocator using a specific type.
+        /// </summary>
+        /// <param name="type">The type to use for registration.</param>
+        /// <param name="service">The service to register.</param>  
+        /// <returns>The ServiceLocator instance after registering the service.</returns>
         public ServiceLocator Register(Type type, object service) {
             services.Register(type, service);
-            Debug.Log($"ServiceLocator.Register: Registered service of type {type.FullName}");
             return this;
         }
         
+        /// <summary>
+        /// Gets a service of a specific type. If no service of the required type is found, an error is thrown.
+        /// </summary>
+        /// <param name="service">Service of type T to get.</param>  
+        /// <typeparam name="T">Class type of the service to be retrieved.</typeparam>
+        /// <returns>The ServiceLocator instance after attempting to retrieve the service.</returns>
         public ServiceLocator Get<T>(out T service) where T : class {
             if (TryGetService(out service)) return this;
             
@@ -99,8 +126,46 @@ namespace UnityServiceLocator {
             
             throw new ArgumentException($"ServiceLocator.Get: Service of type {typeof(T).FullName} not registered");
         }
+
+        /// <summary>
+        /// Allows retrieval of a service of a specific type. An error is thrown if the required service does not exist.
+        /// </summary>
+        /// <typeparam name="T">Class type of the service to be retrieved.</typeparam>
+        /// <returns>Instance of the service of type T.</returns>
+        public T Get<T>() where T : class
+        {
+            Type type = typeof(T);
+            T service = null;
+
+            if (TryGetService(type, out service)) return service;
+
+            if (TryGetNextInHierarchy(out ServiceLocator container))
+                return container.Get<T>();
+
+            throw new ArgumentException($"Could not resolve type '{typeof(T).FullName}'.");
+        }
+        
+        /// <summary>
+        /// Tries to get a service of a specific type. Returns whether or not the process is successful.
+        /// </summary>
+        /// <param name="service">Service of type T to get.</param>  
+        /// <typeparam name="T">Class type of the service to be retrieved.</typeparam>
+        /// <returns>True if the service retrieval was successful, false otherwise.</returns>
+        public bool TryGet<T>(out T service) where T : class {
+            Type type = typeof(T);
+            service = null;
+
+            if (TryGetService(type, out service))
+                return true;
+
+            return TryGetNextInHierarchy(out ServiceLocator container) && container.TryGet(out service);
+        }        
         
         bool TryGetService<T>(out T service) where T : class {
+            return services.TryGet(out service);
+        }
+        
+        bool TryGetService<T>(Type type, out T service) where T : class {
             return services.TryGet(out service);
         }
         
@@ -122,6 +187,7 @@ namespace UnityServiceLocator {
             }
         }
         
+        // https://docs.unity3d.com/ScriptReference/RuntimeInitializeOnLoadMethodAttribute.html
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() {
             global = null;
